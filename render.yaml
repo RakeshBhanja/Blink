@@ -1,0 +1,30 @@
+# Render Blueprint Specification for Blink Chat App
+# To deploy, go to dashboard.render.com -> Blueprints -> New Blueprint Instance
+# and connect your Blink GitHub repository.
+
+services:
+  - type: web
+    name: blink-chat-app
+    env: docker
+    plan: free
+    dockerfilePath: Dockerfile
+    
+    # Render routes incoming HTTP/WS traffic to the exposed port automatically
+    # This environment variable tells uvicorn what port to bind to
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+    # Disk mounts (optional, requires standard paid plan, commented out by default)
+    # If you upgrade from the free tier, you can uncomment this block to persist databases & uploads
+    # disks:
+    #   - name: blink-disk
+    #     mountPath: /app/backend/data
+    #     sizeGB: 1
+    #   - name: blink-uploads-disk
+    #     mountPath: /app/backend/uploads
+    #     sizeGB: 5
