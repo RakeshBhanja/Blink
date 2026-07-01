@@ -1,0 +1,29 @@
+# Node.js
+node_modules/
+dist/
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+env/
+venv/
+ENV/
+
+# Database
+backend/database.db
+backend/database.db-journal
+backend/data/
+
+# Uploads / Media
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Editor configs / OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

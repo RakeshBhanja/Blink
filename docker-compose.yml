@@ -1,0 +1,18 @@
+services:
+  blink-chat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blink_chat_app
+    ports:
+      - "8000:8000"
+    volumes:
+      - blink_data:/app/backend/data
+      - blink_uploads:/app/backend/uploads
+    environment:
+      - JWT_SECRET_KEY=blink_chat_production_secret_key_glow_2026
+    restart: always
+
+volumes:
+  blink_data:
+  blink_uploads:
