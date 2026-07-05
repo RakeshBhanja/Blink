@@ -14,10 +14,23 @@ const AppContent = () => {
   const [rooms, setRooms] = useState([]);
   const [activeRoom, setActiveRoom] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [showSidebarMobile, setShowSidebarMobile] = useState(true);
   
   // Real-time states
   const [onlineUsers, setOnlineUsers] = useState(new Set());
   const [typingUsers, setTypingUsers] = useState({});
+
+  const changeActiveRoom = (room) => {
+    setActiveRoom(room);
+    setShowSidebarMobile(false);
+  };
+
+  const changeView = (newView) => {
+    setView(newView);
+    if (newView === 'admin') {
+      setShowSidebarMobile(false);
+    }
+  };
 
   // Fetch rooms list
   const fetchRooms = useCallback(async () => {
@@ -68,7 +81,7 @@ const AppContent = () => {
     }
   }, [user, fetchRooms]);
 
-  // Load message history when active room changes
+  // Load message history when active room changes or socket reconnects
   useEffect(() => {
     if (activeRoom) {
       fetchMessages(activeRoom.id);
@@ -83,10 +96,17 @@ const AppContent = () => {
         });
         return cleaned;
       });
+
+      if (activeRoom.is_direct_message && socket && isSocketConnected) {
+        socket.send(JSON.stringify({
+          type: 'read_messages',
+          room_id: activeRoom.id
+        }));
+      }
     } else {
       setMessages([]);
     }
-  }, [activeRoom, fetchMessages]);
+  }, [activeRoom, fetchMessages, socket, isSocketConnected]);
 
   // Listen to WebSocket events
   useEffect(() => {
@@ -100,11 +120,33 @@ const AppContent = () => {
           // If message is in currently open room, append it to stream
           if (activeRoom && data.room_id === activeRoom.id) {
             setMessages(prev => [...prev, data]);
+            
+            // Send read receipt if it's a DM and sent by the other user
+            if (activeRoom.is_direct_message && data.sender_id !== user?.id) {
+              socket.send(JSON.stringify({
+                type: 'read_messages',
+                room_id: activeRoom.id
+              }));
+            }
           }
           
           // Re-fetch rooms list to update last messages / active chats order
           fetchRooms();
         } 
+        
+        else if (data.type === 'message_status') {
+          // Update status of specific message
+          if (activeRoom && data.room_id === activeRoom.id) {
+            setMessages(prev => prev.map(m => m.id === data.message_id ? { ...m, status: data.status } : m));
+          }
+        }
+
+        else if (data.type === 'messages_read') {
+          // Update status of all messages in this room sent by current user to 'read'
+          if (activeRoom && data.room_id === activeRoom.id) {
+            setMessages(prev => prev.map(m => m.room_id === data.room_id && m.sender_id === user?.id ? { ...m, status: 'read' } : m));
+          }
+        }
         
         else if (data.type === 'typing') {
           setTypingUsers(prev => ({
@@ -143,7 +185,7 @@ const AppContent = () => {
     return () => {
       socket.removeEventListener('message', handleWSMessage);
     };
-  }, [socket, activeRoom, fetchRooms, refreshUser]);
+  }, [socket, activeRoom, fetchRooms, refreshUser, user]);
 
   // Callback when user submits a message
   const handleSendMessage = (content, imageUrl) => {
@@ -196,21 +238,27 @@ const AppContent = () => {
       <Sidebar 
         rooms={rooms}
         activeRoom={activeRoom}
-        setActiveRoom={setActiveRoom}
+        setActiveRoom={changeActiveRoom}
         view={view}
-        setView={setView}
+        setView={changeView}
         onRoomCreated={handleRoomCreated}
         onlineUsers={onlineUsers}
+        className={showSidebarMobile ? '' : 'hidden-mobile'}
       />
       
       {view === 'admin' ? (
-        <AdminPanel />
+        <AdminPanel 
+          className={!showSidebarMobile ? '' : 'hidden-mobile'}
+          onBack={() => setShowSidebarMobile(true)}
+        />
       ) : (
         <ChatWindow 
           activeRoom={activeRoom}
           messages={messages}
           onSendMessage={handleSendMessage}
           typingUsers={typingUsers}
+          className={!showSidebarMobile ? '' : 'hidden-mobile'}
+          onBack={() => setShowSidebarMobile(true)}
         />
       )}
     </div>

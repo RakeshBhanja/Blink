@@ -38,6 +38,30 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None):
     # Register websocket connection
     await manager.connect(user_id, websocket)
     
+    # Mark all pending "sent" messages in user's DMs as "delivered"
+    with Session(engine) as db:
+        # Find DM rooms the user is in
+        dm_rooms_stmt = select(Room.id).join(RoomUserLink).where(Room.is_direct_message == True).where(RoomUserLink.user_id == user_id)
+        dm_room_ids = db.exec(dm_rooms_stmt).all()
+        if dm_room_ids:
+            # Find messages in those rooms where sender is NOT the user and status is 'sent'
+            undelivered_stmt = select(Message).where(Message.room_id.in_(dm_room_ids)).where(Message.sender_id != user_id).where(Message.status == "sent")
+            undelivered_messages = db.exec(undelivered_stmt).all()
+            if undelivered_messages:
+                for m in undelivered_messages:
+                    m.status = "delivered"
+                    db.add(m)
+                db.commit()
+                
+                # Broadcast delivered status updates to the senders
+                for m in undelivered_messages:
+                    await manager.send_personal_message({
+                        "type": "message_status",
+                        "message_id": m.id,
+                        "room_id": m.room_id,
+                        "status": "delivered"
+                    }, m.sender_id)
+
     # Broadcast online status
     await manager.broadcast_global({
         "type": "user_status",
@@ -45,6 +69,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None):
         "username": username,
         "online": True
     })
+
 
     try:
         while True:
@@ -89,13 +114,23 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None):
                 if not content and not image_url:
                     continue
                     
+                # Determine message status if DM
+                msg_status = "sent"
+                if room.is_direct_message:
+                    other_participants = [pid for pid in room_participant_ids if pid != user_id]
+                    if other_participants:
+                        other_uid = other_participants[0]
+                        if manager.is_user_online(other_uid):
+                            msg_status = "delivered"
+                            
                 # Persist to database
                 with Session(engine) as db:
                     new_msg = Message(
                         content=content,
                         image_url=image_url,
                         sender_id=user_id,
-                        room_id=room_id
+                        room_id=room_id,
+                        status=msg_status
                     )
                     db.add(new_msg)
                     db.commit()
@@ -109,11 +144,33 @@ async def websocket_endpoint(websocket: WebSocket, token: str = None):
                         "sender_id": new_msg.sender_id,
                         "sender_name": username,
                         "room_id": new_msg.room_id,
+                        "status": new_msg.status,
                         "created_at": new_msg.created_at.isoformat()
                     }
                     
                 # Dispatch real-time broadcast
                 await manager.broadcast_to_users(msg_payload, room_participant_ids)
+                
+            elif event_type == "read_messages":
+                # Mark all messages in the room from the other user as "read"
+                with Session(engine) as db:
+                    unread_stmt = select(Message).where(Message.room_id == room_id).where(Message.sender_id != user_id).where(Message.status != "read")
+                    unread_messages = db.exec(unread_stmt).all()
+                    if unread_messages:
+                        for m in unread_messages:
+                            m.status = "read"
+                            db.add(m)
+                        db.commit()
+                        
+                        # Find other participant to notify
+                        other_participants = [pid for pid in room_participant_ids if pid != user_id]
+                        if other_participants:
+                            other_uid = other_participants[0]
+                            await manager.send_personal_message({
+                                "type": "messages_read",
+                                "room_id": room_id,
+                                "reader_id": user_id
+                            }, other_uid)
                 
             elif event_type == "typing":
                 is_typing = event.get("is_typing", False)

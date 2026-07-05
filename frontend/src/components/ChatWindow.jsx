@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth, API_BASE_URL } from '../context/AuthContext';
 import logoImg from '../assets/logo.png';
-import { Send, Image, X, FileImage, Loader2, Sparkles } from 'lucide-react';
+import { Send, Image, X, FileImage, Loader2, Sparkles, ArrowLeft, Check, CheckCheck } from 'lucide-react';
 
-export const ChatWindow = ({ activeRoom, messages, onSendMessage, typingUsers }) => {
+export const ChatWindow = ({ activeRoom, messages, onSendMessage, typingUsers, className = '', onBack }) => {
   const { user, token, socket } = useAuth();
   const [inputText, setInputText] = useState('');
   const [imageFile, setImageFile] = useState(null);
@@ -163,10 +163,15 @@ export const ChatWindow = ({ activeRoom, messages, onSendMessage, typingUsers })
     .map(([uid, typingState]) => typingState.username);
 
   return (
-    <div className="chat-window glass-panel">
+    <div className={`chat-window glass-panel ${className}`}>
       {/* Chat Header */}
       <header className="chat-header">
         <div className="chat-header-info">
+          {onBack && (
+            <button className="sidebar-icon-btn mobile-only-btn" onClick={onBack} style={{ marginRight: '10px', padding: '6px' }}>
+              <ArrowLeft size={20} />
+            </button>
+          )}
           <div>
             <h2 className="chat-header-name">{activeRoom.name}</h2>
             <div className="chat-header-status">
@@ -200,7 +205,20 @@ export const ChatWindow = ({ activeRoom, messages, onSendMessage, typingUsers })
                   />
                 )}
                 
-                <div className="msg-time">{formatTime(msg.created_at)}</div>
+                <div className="msg-time" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                  {formatTime(msg.created_at)}
+                  {isOwn && activeRoom.is_direct_message && (
+                    <span className="msg-status-ticks" style={{ display: 'inline-flex', marginLeft: '4px' }}>
+                      {msg.status === 'read' ? (
+                        <CheckCheck size={14} style={{ color: 'var(--accent-cyan)' }} />
+                      ) : msg.status === 'delivered' ? (
+                        <CheckCheck size={14} style={{ color: 'rgba(255,255,255,0.4)' }} />
+                      ) : (
+                        <Check size={14} style={{ color: 'rgba(255,255,255,0.4)' }} />
+                      )}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           );

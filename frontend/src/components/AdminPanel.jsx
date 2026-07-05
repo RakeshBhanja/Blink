@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth, API_BASE_URL } from '../context/AuthContext';
-import { Shield, Check, X, Trash2, Users, RefreshCw } from 'lucide-react';
+import { Shield, Check, X, Trash2, Users, RefreshCw, ArrowLeft } from 'lucide-react';
 
-export const AdminPanel = () => {
+export const AdminPanel = ({ className = '', onBack }) => {
   const { token } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -98,9 +98,14 @@ export const AdminPanel = () => {
   };
 
   return (
-    <div className="admin-view glass-panel">
+    <div className={`admin-view glass-panel ${className}`}>
       <header className="admin-header">
         <div className="admin-title">
+          {onBack && (
+            <button className="sidebar-icon-btn mobile-only-btn" onClick={onBack} style={{ marginRight: '10px', padding: '6px' }}>
+              <ArrowLeft size={20} />
+            </button>
+          )}
           <Shield size={24} style={{ color: 'var(--accent-cyan)' }} />
           <span>Admin Portal</span>
           <span className="admin-badge">Authorization Controls</span>

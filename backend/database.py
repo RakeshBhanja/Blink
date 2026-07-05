@@ -16,7 +16,23 @@ engine = create_engine(
 
 def init_db():
     SQLModel.metadata.create_all(engine)
+    
+    # Automatic migration to add status column if it doesn't exist
+    from sqlalchemy import text
+    with Session(engine) as session:
+        try:
+            # Check if status column exists
+            session.execute(text("SELECT status FROM message LIMIT 1"))
+        except Exception:
+            # Column doesn't exist, add it
+            try:
+                session.execute(text("ALTER TABLE message ADD COLUMN status VARCHAR DEFAULT 'sent'"))
+                session.commit()
+                print("Database migrated successfully: added 'status' column to 'message' table.")
+            except Exception as e:
+                print(f"Error migrating database message table: {e}")
 
 def get_session():
     with Session(engine) as session:
         yield session
+

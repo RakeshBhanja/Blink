@@ -10,7 +10,8 @@ export const Sidebar = ({
   view, 
   setView, 
   onRoomCreated,
-  onlineUsers 
+  onlineUsers,
+  className = ''
 }) => {
   const { user, logout, token } = useAuth();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -106,7 +107,7 @@ export const Sidebar = ({
   const dms = rooms.filter(r => r.is_direct_message);
 
   return (
-    <aside className="sidebar glass-panel">
+    <aside className={`sidebar glass-panel ${className}`}>
       {/* Sidebar Header */}
       <div className="sidebar-header">
         <div className="sidebar-logo-container">

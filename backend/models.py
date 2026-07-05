@@ -34,7 +34,10 @@ class Message(SQLModel, table=True):
     image_url: Optional[str] = Field(default=None)
     sender_id: int = Field(foreign_key="user.id")
     room_id: int = Field(foreign_key="room.id")
+    status: str = Field(default="sent")
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = Field(default=None)
     
     # Relationships
     sender_name: Optional[str] = Field(default=None) # Denormalized or runtime field for convenience
+

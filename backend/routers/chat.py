@@ -8,6 +8,7 @@ from backend.database import get_session
 from backend.models import Room, User, Message, RoomUserLink
 from backend.schemas import RoomResponse, RoomCreate, MessageResponse, UserResponse
 from backend.dependencies import get_approved_user
+from backend.websocket_manager import manager
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -165,7 +166,7 @@ def create_room(
         }
 
 @router.get("/rooms/{room_id}/messages", response_model=List[MessageResponse])
-def get_messages(
+async def get_messages(
     room_id: int,
     limit: int = 50,
     db: Session = Depends(get_session),
@@ -193,6 +194,28 @@ def get_messages(
                 detail="You do not have access to this conversation"
             )
             
+        # Mark incoming messages as read
+        unread_stmt = select(Message).where(Message.room_id == room_id).where(Message.sender_id != current_user.id).where(Message.status != "read")
+        unread_messages = db.exec(unread_stmt).all()
+        if unread_messages:
+            for m in unread_messages:
+                m.status = "read"
+                db.add(m)
+            db.commit()
+            
+            # Notify sender that messages are read
+            other_member = db.exec(
+                select(RoomUserLink.user_id)
+                .where(RoomUserLink.room_id == room_id)
+                .where(RoomUserLink.user_id != current_user.id)
+            ).first()
+            if other_member:
+                await manager.send_personal_message({
+                    "type": "messages_read",
+                    "room_id": room_id,
+                    "reader_id": current_user.id
+                }, other_member)
+            
     # Fetch messages
     messages = db.exec(
         select(Message)
@@ -213,6 +236,7 @@ def get_messages(
             "sender_id": msg.sender_id,
             "sender_name": sender_name,
             "room_id": msg.room_id,
+            "status": msg.status,
             "created_at": msg.created_at
         })
         
